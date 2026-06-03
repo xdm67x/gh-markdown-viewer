@@ -1,17 +1,73 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PR Markdown Viewer</title>
 <style>
+  :root {
+    --bg:           #0d1117;
+    --bg-sidebar:   #161b22;
+    --bg-hover:     #1f2937;
+    --bg-active:    #1f2937;
+    --bg-code:      #161b22;
+    --bg-comment:   #1a2030;
+    --bg-cancel:    #21262d;
+    --bg-cancel-hv: #30363d;
+    --bg-btn-ok:    #238636;
+    --bg-btn-ok-hv: #2ea043;
+    --bg-error:     #2d1a1a;
+    --border:       #30363d;
+    --text:         #e6edf3;
+    --text-muted:   #8b949e;
+    --text-dim:     #c9d1d9;
+    --text-code:    #e6edf3;
+    --accent:       #58a6ff;
+    --tab-active:   #f78166;
+    --badge-add-bg: #1a4731; --badge-add-fg: #3fb950;
+    --badge-mod-bg: #1a2f4a; --badge-mod-fg: #58a6ff;
+    --badge-ren-bg: #2d2a1a; --badge-ren-fg: #e3b341;
+    --badge-oth-bg: #2d1a1a; --badge-oth-fg: #f85149;
+    --marker-fg:    #3fb950;
+    --err-fg:       #f85149;
+    --ok-fg:        #3fb950;
+  }
+
+  [data-theme="light"] {
+    --bg:           #ffffff;
+    --bg-sidebar:   #f6f8fa;
+    --bg-hover:     #eaeef2;
+    --bg-active:    #eaeef2;
+    --bg-code:      #f6f8fa;
+    --bg-comment:   #dbeafe;
+    --bg-cancel:    #f3f4f6;
+    --bg-cancel-hv: #e5e7eb;
+    --bg-btn-ok:    #1a7f37;
+    --bg-btn-ok-hv: #218240;
+    --bg-error:     #fef2f2;
+    --border:       #d0d7de;
+    --text:         #1f2328;
+    --text-muted:   #57606a;
+    --text-dim:     #424a53;
+    --text-code:    #1f2328;
+    --accent:       #0969da;
+    --tab-active:   #fd8c73;
+    --badge-add-bg: #dafbe1; --badge-add-fg: #116329;
+    --badge-mod-bg: #ddf4ff; --badge-mod-fg: #0969da;
+    --badge-ren-bg: #fdf8e1; --badge-ren-fg: #7d4e00;
+    --badge-oth-bg: #fef2f2; --badge-oth-fg: #82071e;
+    --marker-fg:    #1a7f37;
+    --err-fg:       #cf222e;
+    --ok-fg:        #1a7f37;
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 14px;
-    background: #0d1117;
-    color: #e6edf3;
+    background: var(--bg);
+    color: var(--text);
     display: grid;
     grid-template-columns: 260px 1fr;
     height: 100vh;
@@ -20,8 +76,8 @@
 
   /* ── Sidebar ── */
   #sidebar {
-    background: #161b22;
-    border-right: 1px solid #30363d;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
     overflow-y: auto;
     padding: 12px 0;
   }
@@ -30,7 +86,7 @@
     font-weight: 600;
     letter-spacing: .05em;
     text-transform: uppercase;
-    color: #8b949e;
+    color: var(--text-muted);
     padding: 0 12px 8px;
   }
   .file-item {
@@ -43,12 +99,12 @@
     line-height: 1.4;
     word-break: break-all;
   }
-  .file-item:hover { background: #1f2937; }
+  .file-item:hover { background: var(--bg-hover); }
   .file-item.active {
-    background: #1f2937;
-    border-left-color: #58a6ff;
+    background: var(--bg-active);
+    border-left-color: var(--accent);
   }
-  .file-name { flex: 1; font-size: 12px; color: #e6edf3; }
+  .file-name { flex: 1; font-size: 12px; color: var(--text); }
   .status-badge {
     font-size: 10px;
     font-weight: 600;
@@ -56,11 +112,11 @@
     border-radius: 10px;
     flex-shrink: 0;
   }
-  .status-added    { background: #1a4731; color: #3fb950; }
-  .status-modified { background: #1a2f4a; color: #58a6ff; }
-  .status-renamed  { background: #2d2a1a; color: #e3b341; }
-  .status-other    { background: #2d1a1a; color: #f85149; }
-  .diff-counts { font-size: 10px; color: #8b949e; flex-shrink: 0; }
+  .status-added    { background: var(--badge-add-bg); color: var(--badge-add-fg); }
+  .status-modified { background: var(--badge-mod-bg); color: var(--badge-mod-fg); }
+  .status-renamed  { background: var(--badge-ren-bg); color: var(--badge-ren-fg); }
+  .status-other    { background: var(--badge-oth-bg); color: var(--badge-oth-fg); }
+  .diff-counts { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
 
   /* ── Main panel ── */
   #main {
@@ -70,9 +126,10 @@
   }
   #tabs {
     display: flex;
+    align-items: center;
     gap: 0;
-    border-bottom: 1px solid #30363d;
-    background: #161b22;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-sidebar);
     padding: 0 16px;
     flex-shrink: 0;
   }
@@ -80,7 +137,7 @@
     padding: 10px 16px;
     cursor: pointer;
     border-bottom: 2px solid transparent;
-    color: #8b949e;
+    color: var(--text-muted);
     font-size: 13px;
     font-weight: 500;
     background: none;
@@ -88,8 +145,22 @@
     border-left: none;
     border-right: none;
   }
-  .tab.active { color: #e6edf3; border-bottom-color: #f78166; }
-  .tab:hover:not(.active) { color: #c9d1d9; }
+  .tab.active { color: var(--text); border-bottom-color: var(--tab-active); }
+  .tab:hover:not(.active) { color: var(--text-dim); }
+
+  /* ── Theme toggle ── */
+  #theme-toggle {
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  #theme-toggle:hover { color: var(--text); border-color: var(--accent); }
 
   #content {
     flex: 1;
@@ -97,7 +168,7 @@
     padding: 24px;
   }
   #empty-state {
-    color: #8b949e;
+    color: var(--text-muted);
     text-align: center;
     margin-top: 80px;
     font-size: 15px;
@@ -107,31 +178,31 @@
   .markdown-body {
     max-width: 780px;
     line-height: 1.6;
-    color: #e6edf3;
+    color: var(--text);
   }
   .markdown-body h1, .markdown-body h2, .markdown-body h3,
   .markdown-body h4, .markdown-body h5, .markdown-body h6 {
     margin: 1.2em 0 .4em;
     font-weight: 600;
     line-height: 1.25;
-    color: #e6edf3;
+    color: var(--text);
   }
-  .markdown-body h1 { font-size: 2em; border-bottom: 1px solid #30363d; padding-bottom: .3em; }
-  .markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid #30363d; padding-bottom: .3em; }
+  .markdown-body h1 { font-size: 2em; border-bottom: 1px solid var(--border); padding-bottom: .3em; }
+  .markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: .3em; }
   .markdown-body p { margin: .8em 0; }
-  .markdown-body a { color: #58a6ff; text-decoration: none; }
+  .markdown-body a { color: var(--accent); text-decoration: none; }
   .markdown-body a:hover { text-decoration: underline; }
   .markdown-body code {
-    background: #161b22;
-    border: 1px solid #30363d;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
     border-radius: 4px;
     padding: 2px 6px;
     font-family: "SFMono-Regular", Consolas, monospace;
     font-size: .875em;
   }
   .markdown-body pre {
-    background: #161b22;
-    border: 1px solid #30363d;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 16px;
     overflow-x: auto;
@@ -142,25 +213,25 @@
     border: none;
     padding: 0;
     font-size: .875em;
-    color: #e6edf3;
+    color: var(--text-code);
   }
   .markdown-body ul, .markdown-body ol { padding-left: 2em; margin: .8em 0; }
   .markdown-body li { margin: .3em 0; }
   .markdown-body blockquote {
-    border-left: 4px solid #3d444d;
-    color: #8b949e;
+    border-left: 4px solid var(--border);
+    color: var(--text-muted);
     margin: .8em 0;
     padding: 0 1em;
   }
   .markdown-body table { border-collapse: collapse; width: 100%; margin: 1em 0; }
   .markdown-body th, .markdown-body td {
-    border: 1px solid #30363d;
+    border: 1px solid var(--border);
     padding: 6px 12px;
     text-align: left;
   }
-  .markdown-body th { background: #161b22; font-weight: 600; }
+  .markdown-body th { background: var(--bg-code); font-weight: 600; }
   .markdown-body img { max-width: 100%; }
-  .markdown-body hr { border: none; border-top: 1px solid #30363d; margin: 1.5em 0; }
+  .markdown-body hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
 
   /* ── Source view ── */
   #source-table {
@@ -173,7 +244,7 @@
   .src-line { display: contents; }
   .src-ln {
     user-select: none;
-    color: #8b949e;
+    color: var(--text-muted);
     text-align: right;
     padding: 0 12px 0 4px;
     width: 1%;
@@ -183,12 +254,12 @@
   .src-marker {
     width: 20px;
     text-align: center;
-    color: #3fb950;
+    color: var(--marker-fg);
     vertical-align: top;
     padding: 0 4px;
     cursor: pointer;
   }
-  .src-marker:hover { color: #58a6ff; }
+  .src-marker:hover { color: var(--accent); }
   .src-code {
     white-space: pre-wrap;
     word-break: break-all;
@@ -197,27 +268,27 @@
     vertical-align: top;
   }
   tr.commentable .src-code { cursor: pointer; }
-  tr.commentable:hover { background: #1a2030; }
+  tr.commentable:hover { background: var(--bg-comment); }
   tr.commentable:hover .src-marker::before { content: "+"; }
 
   /* ── Inline comment form ── */
   .comment-row td {
     padding: 8px 8px 8px 52px;
-    background: #1a2030;
+    background: var(--bg-comment);
   }
   .comment-form textarea {
     width: 100%;
     min-height: 80px;
-    background: #0d1117;
-    border: 1px solid #30363d;
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 6px;
-    color: #e6edf3;
+    color: var(--text);
     font-family: inherit;
     font-size: 13px;
     padding: 8px;
     resize: vertical;
   }
-  .comment-form textarea:focus { outline: none; border-color: #58a6ff; }
+  .comment-form textarea:focus { outline: none; border-color: var(--accent); }
   .comment-actions { display: flex; gap: 8px; margin-top: 8px; }
   .btn {
     padding: 5px 14px;
@@ -227,13 +298,13 @@
     font-size: 13px;
     font-weight: 500;
   }
-  .btn-primary { background: #238636; color: #fff; }
-  .btn-primary:hover { background: #2ea043; }
-  .btn-cancel { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
-  .btn-cancel:hover { background: #30363d; }
+  .btn-primary { background: var(--bg-btn-ok); color: #fff; }
+  .btn-primary:hover { background: var(--bg-btn-ok-hv); }
+  .btn-cancel { background: var(--bg-cancel); color: var(--text); border: 1px solid var(--border); }
+  .btn-cancel:hover { background: var(--bg-cancel-hv); }
   .comment-msg { font-size: 12px; margin-top: 6px; }
-  .comment-msg.ok { color: #3fb950; }
-  .comment-msg.err { color: #f85149; }
+  .comment-msg.ok { color: var(--ok-fg); }
+  .comment-msg.err { color: var(--err-fg); }
 
   /* ── Rendered view: commentable blocks ── */
   .md-commentable {
@@ -254,7 +325,7 @@
     transform: translateY(-50%);
     font-size: 14px;
     font-weight: 700;
-    color: #58a6ff;
+    color: var(--accent);
     line-height: 1;
   }
   .md-comment-form-wrap {
@@ -263,20 +334,20 @@
   .md-comment-form-wrap .comment-form textarea {
     width: 100%;
     min-height: 80px;
-    background: #0d1117;
-    border: 1px solid #30363d;
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 6px;
-    color: #e6edf3;
+    color: var(--text);
     font-family: inherit;
     font-size: 13px;
     padding: 8px;
     resize: vertical;
   }
-  .md-comment-form-wrap .comment-form textarea:focus { outline: none; border-color: #58a6ff; }
+  .md-comment-form-wrap .comment-form textarea:focus { outline: none; border-color: var(--accent); }
 
   /* ── Loading / error ── */
-  .loading { color: #8b949e; font-style: italic; padding: 20px 0; }
-  .error-msg { color: #f85149; padding: 12px; background: #2d1a1a; border-radius: 6px; }
+  .loading { color: var(--text-muted); font-style: italic; padding: 20px 0; }
+  .error-msg { color: var(--err-fg); padding: 12px; background: var(--bg-error); border-radius: 6px; }
 </style>
 </head>
 <body>
@@ -290,6 +361,7 @@
   <div id="tabs">
     <button class="tab active" data-tab="rendered">Rendered</button>
     <button class="tab" data-tab="source">Source</button>
+    <button id="theme-toggle" title="Toggle light/dark mode">☀ Light</button>
   </div>
   <div id="content">
     <div id="empty-state">Select a file from the sidebar.</div>
@@ -299,6 +371,24 @@
 <script>
 let currentPath = null;
 let currentTab = 'rendered';
+
+// ── Theme ──
+const root = document.documentElement;
+const toggleBtn = document.getElementById('theme-toggle');
+
+function applyTheme(theme) {
+  root.dataset.theme = theme;
+  toggleBtn.textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
+}
+
+const saved = localStorage.getItem('theme');
+applyTheme(saved === 'light' ? 'light' : 'dark');
+
+toggleBtn.addEventListener('click', () => {
+  const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('theme', next);
+  applyTheme(next);
+});
 
 // ── Tab switching ──
 document.querySelectorAll('.tab').forEach(btn => {
@@ -367,14 +457,11 @@ async function loadRendered(path) {
 }
 
 function attachRenderedComments(body, _commentableLines, path) {
-  // GitHub prefixes all user-supplied id= with "user-content-".
-  // Query by attribute prefix rather than exact ID to handle this transparently.
   const anchors = body.querySelectorAll('a[id^="user-content-md-src-"]');
   anchors.forEach(anchor => {
     const lineN = parseInt(anchor.id.replace('user-content-md-src-', ''), 10);
     if (!lineN) return;
 
-    // Walk up to the nearest semantic block element.
     const block = anchor.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, dt, dd') || anchor.parentElement;
     if (!block || block._mdCommentWired) return;
     block._mdCommentWired = true;
@@ -419,7 +506,7 @@ function renderSourceTable(lines, path, container) {
 
     const tdCode = document.createElement('td');
     tdCode.className = 'src-code';
-    tdCode.textContent = text; // safe — avoids XSS from raw markdown content
+    tdCode.textContent = text;
 
     tr.append(tdLn, tdMark, tdCode);
     table.appendChild(tr);
