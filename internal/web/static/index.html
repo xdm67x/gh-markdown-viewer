@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PR Markdown Viewer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    background: #0d1117;
+    color: #e6edf3;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    background: #161b22;
+    border-right: 1px solid #30363d;
+    overflow-y: auto;
+    padding: 12px 0;
+  }
+  #sidebar h2 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: #8b949e;
+    padding: 0 12px 8px;
+  }
+  .file-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    line-height: 1.4;
+    word-break: break-all;
+  }
+  .file-item:hover { background: #1f2937; }
+  .file-item.active {
+    background: #1f2937;
+    border-left-color: #58a6ff;
+  }
+  .file-name { flex: 1; font-size: 12px; color: #e6edf3; }
+  .status-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .status-added    { background: #1a4731; color: #3fb950; }
+  .status-modified { background: #1a2f4a; color: #58a6ff; }
+  .status-renamed  { background: #2d2a1a; color: #e3b341; }
+  .status-other    { background: #2d1a1a; color: #f85149; }
+  .diff-counts { font-size: 10px; color: #8b949e; flex-shrink: 0; }
+
+  /* ── Main panel ── */
+  #main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #30363d;
+    background: #161b22;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+  .tab {
+    padding: 10px 16px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: #8b949e;
+    font-size: 13px;
+    font-weight: 500;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .tab.active { color: #e6edf3; border-bottom-color: #f78166; }
+  .tab:hover:not(.active) { color: #c9d1d9; }
+
+  #content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  #empty-state {
+    color: #8b949e;
+    text-align: center;
+    margin-top: 80px;
+    font-size: 15px;
+  }
+
+  /* ── Rendered markdown ── */
+  .markdown-body {
+    max-width: 780px;
+    line-height: 1.6;
+    color: #e6edf3;
+  }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3,
+  .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    margin: 1.2em 0 .4em;
+    font-weight: 600;
+    line-height: 1.25;
+    color: #e6edf3;
+  }
+  .markdown-body h1 { font-size: 2em; border-bottom: 1px solid #30363d; padding-bottom: .3em; }
+  .markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid #30363d; padding-bottom: .3em; }
+  .markdown-body p { margin: .8em 0; }
+  .markdown-body a { color: #58a6ff; text-decoration: none; }
+  .markdown-body a:hover { text-decoration: underline; }
+  .markdown-body code {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: .875em;
+  }
+  .markdown-body pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+  .markdown-body pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: .875em;
+    color: #e6edf3;
+  }
+  .markdown-body ul, .markdown-body ol { padding-left: 2em; margin: .8em 0; }
+  .markdown-body li { margin: .3em 0; }
+  .markdown-body blockquote {
+    border-left: 4px solid #3d444d;
+    color: #8b949e;
+    margin: .8em 0;
+    padding: 0 1em;
+  }
+  .markdown-body table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  .markdown-body th, .markdown-body td {
+    border: 1px solid #30363d;
+    padding: 6px 12px;
+    text-align: left;
+  }
+  .markdown-body th { background: #161b22; font-weight: 600; }
+  .markdown-body img { max-width: 100%; }
+  .markdown-body hr { border: none; border-top: 1px solid #30363d; margin: 1.5em 0; }
+
+  /* ── Source view ── */
+  #source-table {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 900px;
+  }
+  .src-line { display: contents; }
+  .src-ln {
+    user-select: none;
+    color: #8b949e;
+    text-align: right;
+    padding: 0 12px 0 4px;
+    width: 1%;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  .src-marker {
+    width: 20px;
+    text-align: center;
+    color: #3fb950;
+    vertical-align: top;
+    padding: 0 4px;
+    cursor: pointer;
+  }
+  .src-marker:hover { color: #58a6ff; }
+  .src-code {
+    white-space: pre-wrap;
+    word-break: break-all;
+    padding: 0 8px;
+    line-height: 1.5;
+    vertical-align: top;
+  }
+  tr.commentable .src-code { cursor: pointer; }
+  tr.commentable:hover { background: #1a2030; }
+  tr.commentable:hover .src-marker::before { content: "+"; }
+
+  /* ── Inline comment form ── */
+  .comment-row td {
+    padding: 8px 8px 8px 52px;
+    background: #1a2030;
+  }
+  .comment-form textarea {
+    width: 100%;
+    min-height: 80px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px;
+    resize: vertical;
+  }
+  .comment-form textarea:focus { outline: none; border-color: #58a6ff; }
+  .comment-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .btn {
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .btn-primary { background: #238636; color: #fff; }
+  .btn-primary:hover { background: #2ea043; }
+  .btn-cancel { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+  .btn-cancel:hover { background: #30363d; }
+  .comment-msg { font-size: 12px; margin-top: 6px; }
+  .comment-msg.ok { color: #3fb950; }
+  .comment-msg.err { color: #f85149; }
+
+  /* ── Rendered view: commentable blocks ── */
+  .md-commentable {
+    cursor: pointer;
+    position: relative;
+    border-radius: 4px;
+    transition: background 0.1s;
+  }
+  .md-commentable:hover {
+    background: rgba(88, 166, 255, 0.07);
+    outline: 1px solid rgba(88, 166, 255, 0.25);
+  }
+  .md-commentable:hover::after {
+    content: "+";
+    position: absolute;
+    right: -22px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    font-weight: 700;
+    color: #58a6ff;
+    line-height: 1;
+  }
+  .md-comment-form-wrap {
+    margin: 8px 0 12px;
+  }
+  .md-comment-form-wrap .comment-form textarea {
+    width: 100%;
+    min-height: 80px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px;
+    resize: vertical;
+  }
+  .md-comment-form-wrap .comment-form textarea:focus { outline: none; border-color: #58a6ff; }
+
+  /* ── Loading / error ── */
+  .loading { color: #8b949e; font-style: italic; padding: 20px 0; }
+  .error-msg { color: #f85149; padding: 12px; background: #2d1a1a; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<nav id="sidebar">
+  <h2>Changed Files</h2>
+  <div id="file-list"><span class="loading">Loading…</span></div>
+</nav>
+
+<section id="main">
+  <div id="tabs">
+    <button class="tab active" data-tab="rendered">Rendered</button>
+    <button class="tab" data-tab="source">Source</button>
+  </div>
+  <div id="content">
+    <div id="empty-state">Select a file from the sidebar.</div>
+  </div>
+</section>
+
+<script>
+let currentPath = null;
+let currentTab = 'rendered';
+
+// ── Tab switching ──
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentTab = btn.dataset.tab;
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (currentPath) loadFile(currentPath);
+  });
+});
+
+// ── Sidebar ──
+async function loadSidebar() {
+  const res = await fetch('/api/files');
+  const files = await res.json();
+  const list = document.getElementById('file-list');
+  list.innerHTML = '';
+  files.forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.dataset.path = f.path;
+
+    const statusClass = {
+      added: 'status-added',
+      modified: 'status-modified',
+      renamed: 'status-renamed',
+    }[f.status] || 'status-other';
+
+    item.innerHTML = `
+      <span class="file-name">${esc(f.path)}</span>
+      <span class="status-badge ${statusClass}">${esc(f.status)}</span>
+      <span class="diff-counts">+${f.additions} -${f.deletions}</span>
+    `;
+    item.addEventListener('click', () => selectFile(f.path, item));
+    list.appendChild(item);
+  });
+}
+
+function selectFile(path, itemEl) {
+  document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+  itemEl.classList.add('active');
+  currentPath = path;
+  loadFile(path);
+}
+
+// ── Content loading ──
+function loadFile(path) {
+  if (currentTab === 'rendered') loadRendered(path);
+  else loadSource(path);
+}
+
+async function loadRendered(path) {
+  const content = document.getElementById('content');
+  content.innerHTML = '<span class="loading">Rendering…</span>';
+  try {
+    const res = await fetch('/api/file/rendered?path=' + encodeURIComponent(path));
+    if (!res.ok) throw new Error(await res.text());
+    const { html, commentableLines } = await res.json();
+    content.innerHTML = '<div class="markdown-body"></div>';
+    const body = content.querySelector('.markdown-body');
+    body.innerHTML = html;
+    attachRenderedComments(body, commentableLines, path);
+  } catch (e) {
+    content.innerHTML = `<div class="error-msg">${esc(e.message)}</div>`;
+  }
+}
+
+function attachRenderedComments(body, _commentableLines, path) {
+  // GitHub prefixes all user-supplied id= with "user-content-".
+  // Query by attribute prefix rather than exact ID to handle this transparently.
+  const anchors = body.querySelectorAll('a[id^="user-content-md-src-"]');
+  anchors.forEach(anchor => {
+    const lineN = parseInt(anchor.id.replace('user-content-md-src-', ''), 10);
+    if (!lineN) return;
+
+    // Walk up to the nearest semantic block element.
+    const block = anchor.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, dt, dd') || anchor.parentElement;
+    if (!block || block._mdCommentWired) return;
+    block._mdCommentWired = true;
+    block.classList.add('md-commentable');
+
+    block.addEventListener('click', () => {
+      if (block.nextElementSibling?.classList.contains('md-comment-form-wrap')) return;
+      const wrap = buildRenderedCommentForm(path, lineN, () => wrap.remove());
+      block.after(wrap);
+      wrap.querySelector('textarea').focus();
+    });
+  });
+}
+
+async function loadSource(path) {
+  const content = document.getElementById('content');
+  content.innerHTML = '<span class="loading">Loading source…</span>';
+  try {
+    const res = await fetch('/api/file/source?path=' + encodeURIComponent(path));
+    if (!res.ok) throw new Error(await res.text());
+    const { lines } = await res.json();
+    renderSourceTable(lines, path, content);
+  } catch (e) {
+    content.innerHTML = `<div class="error-msg">${esc(e.message)}</div>`;
+  }
+}
+
+function renderSourceTable(lines, path, container) {
+  const table = document.createElement('table');
+  table.id = 'source-table';
+
+  lines.forEach(({ n, text, commentable }) => {
+    const tr = document.createElement('tr');
+    if (commentable) tr.classList.add('commentable');
+
+    const tdLn = document.createElement('td');
+    tdLn.className = 'src-ln';
+    tdLn.textContent = n;
+
+    const tdMark = document.createElement('td');
+    tdMark.className = 'src-marker';
+
+    const tdCode = document.createElement('td');
+    tdCode.className = 'src-code';
+    tdCode.textContent = text; // safe — avoids XSS from raw markdown content
+
+    tr.append(tdLn, tdMark, tdCode);
+    table.appendChild(tr);
+
+    if (commentable) {
+      const openComment = () => {
+        if (tr.nextSibling && tr.nextSibling.classList?.contains('comment-row')) return;
+        const formRow = buildCommentForm(path, n, () => formRow.remove());
+        tr.after(formRow);
+        formRow.querySelector('textarea').focus();
+      };
+      tdMark.addEventListener('click', openComment);
+      tdCode.addEventListener('click', openComment);
+    }
+  });
+
+  container.innerHTML = '';
+  container.appendChild(table);
+}
+
+function buildCommentForm(path, line, onClose) {
+  const tr = document.createElement('tr');
+  tr.className = 'comment-row';
+  const td = document.createElement('td');
+  td.colSpan = 3;
+
+  const form = document.createElement('div');
+  form.className = 'comment-form';
+
+  const ta = document.createElement('textarea');
+  ta.placeholder = `Leave a comment on line ${line}…`;
+
+  const actions = document.createElement('div');
+  actions.className = 'comment-actions';
+
+  const submit = document.createElement('button');
+  submit.className = 'btn btn-primary';
+  submit.textContent = 'Submit';
+
+  const cancel = document.createElement('button');
+  cancel.className = 'btn btn-cancel';
+  cancel.textContent = 'Cancel';
+
+  const msg = document.createElement('div');
+  msg.className = 'comment-msg';
+
+  cancel.addEventListener('click', onClose);
+
+  submit.addEventListener('click', async () => {
+    const body = ta.value.trim();
+    if (!body) return;
+    submit.disabled = true;
+    submit.textContent = 'Posting…';
+    msg.className = 'comment-msg';
+    msg.textContent = '';
+    try {
+      const res = await fetch('/api/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, line, body }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
+      msg.className = 'comment-msg ok';
+      msg.textContent = 'Comment posted!';
+      setTimeout(onClose, 1200);
+    } catch (e) {
+      msg.className = 'comment-msg err';
+      msg.textContent = e.message;
+      submit.disabled = false;
+      submit.textContent = 'Submit';
+    }
+  });
+
+  actions.append(submit, cancel);
+  form.append(ta, actions, msg);
+  td.appendChild(form);
+  tr.appendChild(td);
+  return tr;
+}
+
+function buildRenderedCommentForm(path, line, onClose) {
+  const wrap = document.createElement('div');
+  wrap.className = 'md-comment-form-wrap';
+
+  const form = document.createElement('div');
+  form.className = 'comment-form';
+
+  const ta = document.createElement('textarea');
+  ta.placeholder = `Leave a comment on line ${line}…`;
+
+  const actions = document.createElement('div');
+  actions.className = 'comment-actions';
+
+  const submit = document.createElement('button');
+  submit.className = 'btn btn-primary';
+  submit.textContent = 'Submit';
+
+  const cancel = document.createElement('button');
+  cancel.className = 'btn btn-cancel';
+  cancel.textContent = 'Cancel';
+
+  const msg = document.createElement('div');
+  msg.className = 'comment-msg';
+
+  cancel.addEventListener('click', onClose);
+
+  submit.addEventListener('click', async () => {
+    const body = ta.value.trim();
+    if (!body) return;
+    submit.disabled = true;
+    submit.textContent = 'Posting…';
+    msg.className = 'comment-msg';
+    msg.textContent = '';
+    try {
+      const res = await fetch('/api/comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, line, body }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      msg.className = 'comment-msg ok';
+      msg.textContent = 'Comment posted!';
+      setTimeout(onClose, 1200);
+    } catch (e) {
+      msg.className = 'comment-msg err';
+      msg.textContent = e.message;
+      submit.disabled = false;
+      submit.textContent = 'Submit';
+    }
+  });
+
+  actions.append(submit, cancel);
+  form.append(ta, actions, msg);
+  wrap.appendChild(form);
+  return wrap;
+}
+
+// ── Utils ──
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Init ──
+loadSidebar();
+</script>
+</body>
+</html>

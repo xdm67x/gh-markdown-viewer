@@ -1,8 +1,7 @@
 # gh-markdown-viewer
 
-A `gh` CLI extension that renders markdown files changed in a GitHub PR with a
-terminal UI, and lets you post line-level review comments directly from your
-terminal.
+A `gh` CLI extension that renders markdown files changed in a GitHub PR in your
+browser and lets you post line-level review comments directly from the UI.
 
 ## Install
 
@@ -29,39 +28,37 @@ gh markdown-viewer https://github.com/owner/repo/pull/42
 gh markdown-viewer 42 --repo owner/repo
 ```
 
-## Key bindings
+Running the command starts a local HTTP server on a random port, prints the URL,
+and auto-opens it in your default browser. Press **Ctrl+C** to shut down.
 
-### File picker
+## Web UI
 
-| Key   | Action          |
-|-------|-----------------|
-| j / ↓ | Move down       |
-| k / ↑ | Move up         |
-| enter | Open file       |
-| q     | Quit            |
+The interface has two panels:
 
-### Markdown viewer
+- **Sidebar** — lists all `.md` files changed by the PR with their status badge
+  (`added`, `modified`, `renamed`) and `+additions / -deletions` counts.
+- **Main panel** — two tabs per file:
+  - **Rendered** — GitHub-flavored markdown rendered pixel-perfectly via the
+    GitHub Markdown API (`POST /markdown`), including `#issue` and `@mention`
+    links resolved relative to the PR's repository.
+  - **Source** — raw markdown with numbered lines. Lines that are part of the PR
+    diff are highlighted; clicking one opens an inline textarea for a review
+    comment.
 
-| Key       | Action                             |
-|-----------|------------------------------------|
-| j / ↓     | Move cursor down one line          |
-| k / ↑     | Move cursor up one line            |
-| g         | Jump to top                        |
-| G         | Jump to bottom                     |
-| c         | Comment on current line (if in diff)|
-| esc / ←   | Back to file picker                |
-| q         | Quit                               |
+## Posting comments
 
-### Comment input
-
-| Key        | Action          |
-|------------|-----------------|
-| ctrl+s     | Submit comment  |
-| esc        | Cancel          |
+1. Select a file in the sidebar, then switch to the **Source** tab.
+2. Hover over a line — commentable lines (those in the diff) show a `+` marker.
+3. Click the line or the `+` marker to open an inline comment form.
+4. Type your comment and click **Submit**. The comment is posted via
+   `POST /repos/{owner}/{repo}/pulls/{n}/comments` and a confirmation appears.
+5. If you click a non-commentable line and try to submit, GitHub's own error
+   message is surfaced (e.g. "line must be part of the diff").
 
 ## How it works
 
-Only `.md` files modified by the PR are listed. When you navigate to a line and
-press `c`, the extension checks whether that source line falls inside the PR
-diff. If it does, you can type a review comment that is posted to GitHub via the
-REST API (`POST /repos/{owner}/{repo}/pulls/{n}/comments`).
+File content is fetched at the PR's head SHA via the GitHub Contents API.
+Commentable lines are derived from the unified diff patch in the PR files
+response: any `+` (added) or ` ` (context) line inside a diff hunk is
+considered commentable. Deleted lines (`-`) are not present in the rendered
+source view and are not offered for commenting.
