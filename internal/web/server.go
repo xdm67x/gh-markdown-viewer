@@ -47,6 +47,7 @@ func (s *Server) Handler() http.Handler {
 		w.Write(data) //nolint:errcheck
 	})
 
+	mux.HandleFunc("GET /api/info", s.handleInfo)
 	mux.HandleFunc("GET /api/files", s.handleFiles)
 	mux.HandleFunc("GET /api/file/rendered", s.handleRendered)
 	mux.HandleFunc("GET /api/file/source", s.handleSource)

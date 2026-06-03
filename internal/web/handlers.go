@@ -2,12 +2,19 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/xdm67x/gh-markdown-viewer/internal/ghpr"
 )
+
+func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
+	ref := s.info.Ref
+	url := fmt.Sprintf("https://github.com/%s/%s/pull/%d", ref.Owner, ref.Repo, ref.Number)
+	writeJSON(w, map[string]string{"url": url})
+}
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")

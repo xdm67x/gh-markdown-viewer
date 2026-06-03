@@ -148,9 +148,14 @@
   .tab.active { color: var(--text); border-bottom-color: var(--tab-active); }
   .tab:hover:not(.active) { color: var(--text-dim); }
 
-  /* ── Theme toggle ── */
-  #theme-toggle {
+  /* ── Toolbar buttons (theme toggle, refresh, PR link) ── */
+  #toolbar-right {
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toolbar-btn {
     padding: 4px 10px;
     border-radius: 6px;
     border: 1px solid var(--border);
@@ -159,8 +164,14 @@
     font-size: 12px;
     cursor: pointer;
     line-height: 1.4;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
-  #theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+  .toolbar-btn:hover { color: var(--text); border-color: var(--accent); }
+  .toolbar-btn.spinning svg { animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   #content {
     flex: 1;
@@ -453,7 +464,14 @@
   <div id="tabs">
     <button class="tab active" data-tab="rendered">Rendered</button>
     <button class="tab" data-tab="source">Source</button>
-    <button id="theme-toggle" title="Toggle light/dark mode">☀ Light</button>
+    <div id="toolbar-right">
+      <button id="refresh-btn" class="toolbar-btn" title="Refresh (clear cache)">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+        Refresh
+      </button>
+      <a id="pr-link" class="toolbar-btn" href="#" target="_blank" rel="noopener" title="Open PR on GitHub">↗ PR</a>
+      <button id="theme-toggle" class="toolbar-btn" title="Toggle light/dark mode">☀ Light</button>
+    </div>
   </div>
   <div id="content">
     <div id="empty-state">Select a file from the sidebar.</div>
@@ -465,6 +483,9 @@ let currentPath = null;
 let currentTab = 'rendered';
 // threads cache keyed by path
 const threadCache = {};
+// content caches keyed by path — avoids re-fetching on tab/file switch
+const renderedCache = {};
+const sourceCache = {};
 
 // ── Theme ──
 const root = document.documentElement;
@@ -483,6 +504,28 @@ toggleBtn.addEventListener('click', () => {
   localStorage.setItem('theme', next);
   applyTheme(next);
 });
+
+// ── Refresh ──
+const refreshBtn = document.getElementById('refresh-btn');
+refreshBtn.addEventListener('click', () => {
+  // clear all caches
+  for (const k in threadCache) delete threadCache[k];
+  for (const k in renderedCache) delete renderedCache[k];
+  for (const k in sourceCache) delete sourceCache[k];
+  refreshBtn.classList.add('spinning');
+  const done = () => refreshBtn.classList.remove('spinning');
+  if (currentPath) {
+    loadFile(currentPath).finally(done);
+  } else {
+    loadSidebar().finally(done);
+  }
+});
+
+// ── PR link ──
+const prLink = document.getElementById('pr-link');
+fetch('/api/info').then(r => r.json()).then(({ url }) => {
+  prLink.href = url;
+}).catch(() => { prLink.style.display = 'none'; });
 
 // ── Tab switching ──
 document.querySelectorAll('.tab').forEach(btn => {
@@ -672,20 +715,22 @@ function buildThreadEl(thread, onAction) {
 
 // ── Content loading ──
 function loadFile(path) {
-  if (currentTab === 'rendered') loadRendered(path);
-  else loadSource(path);
+  return currentTab === 'rendered' ? loadRendered(path) : loadSource(path);
 }
 
 async function loadRendered(path) {
   const content = document.getElementById('content');
   content.innerHTML = '<span class="loading">Rendering…</span>';
   try {
-    const [renderedRes, threads] = await Promise.all([
-      fetch('/api/file/rendered?path=' + encodeURIComponent(path)),
-      getThreads(path),
-    ]);
-    if (!renderedRes.ok) throw new Error(await renderedRes.text());
-    const { html, commentableLines } = await renderedRes.json();
+    let rendered = renderedCache[path];
+    if (!rendered) {
+      const res = await fetch('/api/file/rendered?path=' + encodeURIComponent(path));
+      if (!res.ok) throw new Error(await res.text());
+      rendered = await res.json();
+      renderedCache[path] = rendered;
+    }
+    const threads = await getThreads(path);
+    const { html, commentableLines } = rendered;
     content.innerHTML = '<div class="markdown-body"></div>';
     const body = content.querySelector('.markdown-body');
     body.innerHTML = html;
@@ -743,13 +788,15 @@ async function loadSource(path) {
   const content = document.getElementById('content');
   content.innerHTML = '<span class="loading">Loading source…</span>';
   try {
-    const [sourceRes, threads] = await Promise.all([
-      fetch('/api/file/source?path=' + encodeURIComponent(path)),
-      getThreads(path),
-    ]);
-    if (!sourceRes.ok) throw new Error(await sourceRes.text());
-    const { lines } = await sourceRes.json();
-    renderSourceTable(lines, path, content, threads);
+    let source = sourceCache[path];
+    if (!source) {
+      const res = await fetch('/api/file/source?path=' + encodeURIComponent(path));
+      if (!res.ok) throw new Error(await res.text());
+      source = await res.json();
+      sourceCache[path] = source;
+    }
+    const threads = await getThreads(path);
+    renderSourceTable(source.lines, path, content, threads);
   } catch (e) {
     content.innerHTML = `<div class="error-msg">${esc(e.message)}</div>`;
   }
