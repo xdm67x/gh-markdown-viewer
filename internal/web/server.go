@@ -51,6 +51,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/file/rendered", s.handleRendered)
 	mux.HandleFunc("GET /api/file/source", s.handleSource)
 	mux.HandleFunc("POST /api/comment", s.handleComment)
+	mux.HandleFunc("GET /api/threads", s.handleThreads)
+	mux.HandleFunc("POST /api/reply", s.handleReply)
+	mux.HandleFunc("POST /api/resolve", s.handleResolveThread)
 
 	return mux
 }

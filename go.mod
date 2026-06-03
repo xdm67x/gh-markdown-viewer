@@ -1,6 +1,6 @@
 module github.com/xdm67x/gh-markdown-viewer
 
-go 1.22
+go 1.26.1
 
 require github.com/cli/go-gh/v2 v2.11.2
 

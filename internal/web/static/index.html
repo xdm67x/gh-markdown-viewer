@@ -345,6 +345,98 @@
   }
   .md-comment-form-wrap .comment-form textarea:focus { outline: none; border-color: var(--accent); }
 
+  /* ── Review threads ── */
+  .thread-wrap {
+    margin: 8px 0 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .thread-wrap.resolved {
+    opacity: 0.55;
+  }
+  .thread-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .thread-resolved-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: var(--badge-mod-bg);
+    color: var(--badge-mod-fg);
+  }
+  .thread-comment {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .thread-comment:last-child { border-bottom: none; }
+  .thread-comment-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .thread-comment-meta strong { color: var(--accent); font-weight: 600; }
+  .thread-comment-body {
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .thread-actions {
+    display: flex;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border);
+  }
+  .btn-sm {
+    padding: 3px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg-cancel);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .btn-sm:hover { background: var(--bg-cancel-hv); }
+  .btn-sm.resolve { border-color: var(--bg-btn-ok); color: var(--ok-fg); }
+  .btn-sm.resolve:hover { background: var(--bg-btn-ok); color: #fff; }
+  .thread-reply-form {
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-comment);
+  }
+  .thread-reply-form textarea {
+    width: 100%;
+    min-height: 60px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 6px 8px;
+    resize: vertical;
+  }
+  .thread-reply-form textarea:focus { outline: none; border-color: var(--accent); }
+  .thread-reply-actions { display: flex; gap: 8px; margin-top: 6px; }
+
+  /* source view: thread below a line */
+  .src-thread-row td {
+    padding: 0;
+    background: var(--bg-comment);
+  }
+  .src-thread-row .thread-wrap { margin: 0; border-radius: 0; border-left: 3px solid var(--accent); border-right: none; border-top: none; }
+
   /* ── Loading / error ── */
   .loading { color: var(--text-muted); font-style: italic; padding: 20px 0; }
   .error-msg { color: var(--err-fg); padding: 12px; background: var(--bg-error); border-radius: 6px; }
@@ -371,6 +463,8 @@
 <script>
 let currentPath = null;
 let currentTab = 'rendered';
+// threads cache keyed by path
+const threadCache = {};
 
 // ── Theme ──
 const root = document.documentElement;
@@ -434,6 +528,148 @@ function selectFile(path, itemEl) {
   loadFile(path);
 }
 
+// ── Threads ──
+async function getThreads(path) {
+  if (threadCache[path]) return threadCache[path];
+  const res = await fetch('/api/threads');
+  if (!res.ok) return [];
+  const all = await res.json();
+  // group by path so each loadFile call can filter cheaply
+  for (const t of (all || [])) {
+    if (!threadCache[t.path]) threadCache[t.path] = [];
+    threadCache[t.path].push(t);
+  }
+  return threadCache[path] || [];
+}
+
+function invalidateThreads() {
+  for (const k in threadCache) delete threadCache[k];
+}
+
+function buildThreadEl(thread, onAction) {
+  const wrap = document.createElement('div');
+  wrap.className = 'thread-wrap' + (thread.resolved ? ' resolved' : '');
+  wrap.dataset.nodeId = thread.nodeId;
+
+  const header = document.createElement('div');
+  header.className = 'thread-header';
+  header.innerHTML = `<span>Thread · line ${thread.line}</span>`;
+  if (thread.resolved) {
+    const badge = document.createElement('span');
+    badge.className = 'thread-resolved-badge';
+    badge.textContent = 'Resolved';
+    header.appendChild(badge);
+  }
+  wrap.appendChild(header);
+
+  for (const c of (thread.comments || [])) {
+    const div = document.createElement('div');
+    div.className = 'thread-comment';
+    const date = new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    div.innerHTML = `
+      <div class="thread-comment-meta"><strong>${esc(c.author)}</strong> &mdash; ${esc(date)}</div>
+      <div class="thread-comment-body">${esc(c.body)}</div>
+    `;
+    wrap.appendChild(div);
+  }
+
+  // action bar
+  const actions = document.createElement('div');
+  actions.className = 'thread-actions';
+
+  const replyBtn = document.createElement('button');
+  replyBtn.className = 'btn-sm';
+  replyBtn.textContent = 'Reply';
+  actions.appendChild(replyBtn);
+
+  if (!thread.resolved) {
+    const resolveBtn = document.createElement('button');
+    resolveBtn.className = 'btn-sm resolve';
+    resolveBtn.textContent = 'Resolve conversation';
+    resolveBtn.addEventListener('click', async () => {
+      resolveBtn.disabled = true;
+      resolveBtn.textContent = 'Resolving…';
+      try {
+        const res = await fetch('/api/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nodeId: thread.nodeId }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        thread.resolved = true;
+        invalidateThreads();
+        onAction();
+      } catch (e) {
+        resolveBtn.disabled = false;
+        resolveBtn.textContent = 'Resolve conversation';
+        alert('Error: ' + e.message);
+      }
+    });
+    actions.appendChild(resolveBtn);
+  }
+  wrap.appendChild(actions);
+
+  // reply form (hidden until Reply clicked)
+  const replyForm = document.createElement('div');
+  replyForm.className = 'thread-reply-form';
+  replyForm.style.display = 'none';
+
+  const lastComment = thread.comments?.[thread.comments.length - 1];
+  const ta = document.createElement('textarea');
+  ta.placeholder = 'Reply to this thread…';
+  const replyActions = document.createElement('div');
+  replyActions.className = 'thread-reply-actions';
+
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'btn btn-primary';
+  submitBtn.textContent = 'Reply';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-cancel';
+  cancelBtn.textContent = 'Cancel';
+
+  const msg = document.createElement('div');
+  msg.className = 'comment-msg';
+
+  cancelBtn.addEventListener('click', () => { replyForm.style.display = 'none'; ta.value = ''; });
+
+  submitBtn.addEventListener('click', async () => {
+    const body = ta.value.trim();
+    if (!body || !lastComment) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Posting…';
+    msg.textContent = '';
+    try {
+      const res = await fetch('/api/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId: lastComment.id, body }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      msg.className = 'comment-msg ok';
+      msg.textContent = 'Reply posted!';
+      invalidateThreads();
+      setTimeout(onAction, 1000);
+    } catch (e) {
+      msg.className = 'comment-msg err';
+      msg.textContent = e.message;
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Reply';
+    }
+  });
+
+  replyBtn.addEventListener('click', () => {
+    replyForm.style.display = replyForm.style.display === 'none' ? '' : 'none';
+    if (replyForm.style.display !== 'none') ta.focus();
+  });
+
+  replyActions.append(submitBtn, cancelBtn);
+  replyForm.append(ta, replyActions, msg);
+  wrap.appendChild(replyForm);
+
+  return wrap;
+}
+
 // ── Content loading ──
 function loadFile(path) {
   if (currentTab === 'rendered') loadRendered(path);
@@ -444,13 +680,17 @@ async function loadRendered(path) {
   const content = document.getElementById('content');
   content.innerHTML = '<span class="loading">Rendering…</span>';
   try {
-    const res = await fetch('/api/file/rendered?path=' + encodeURIComponent(path));
-    if (!res.ok) throw new Error(await res.text());
-    const { html, commentableLines } = await res.json();
+    const [renderedRes, threads] = await Promise.all([
+      fetch('/api/file/rendered?path=' + encodeURIComponent(path)),
+      getThreads(path),
+    ]);
+    if (!renderedRes.ok) throw new Error(await renderedRes.text());
+    const { html, commentableLines } = await renderedRes.json();
     content.innerHTML = '<div class="markdown-body"></div>';
     const body = content.querySelector('.markdown-body');
     body.innerHTML = html;
     attachRenderedComments(body, commentableLines, path);
+    injectRenderedThreads(body, threads, path);
   } catch (e) {
     content.innerHTML = `<div class="error-msg">${esc(e.message)}</div>`;
   }
@@ -476,22 +716,55 @@ function attachRenderedComments(body, _commentableLines, path) {
   });
 }
 
+// Inject existing threads into the rendered markdown view.
+// Each thread is anchored to the block that contains the anchor for its line.
+function injectRenderedThreads(body, threads, path) {
+  if (!threads || !threads.length) return;
+  // Build a map: line -> anchor element
+  const anchorMap = {};
+  body.querySelectorAll('a[id^="user-content-md-src-"]').forEach(a => {
+    const n = parseInt(a.id.replace('user-content-md-src-', ''), 10);
+    if (n) anchorMap[n] = a;
+  });
+
+  for (const thread of threads) {
+    const anchor = anchorMap[thread.line];
+    if (!anchor) continue;
+    const block = anchor.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, dt, dd') || anchor.parentElement;
+    if (!block) continue;
+
+    const reload = () => { invalidateThreads(); loadRendered(path); };
+    const threadEl = buildThreadEl(thread, reload);
+    block.after(threadEl);
+  }
+}
+
 async function loadSource(path) {
   const content = document.getElementById('content');
   content.innerHTML = '<span class="loading">Loading source…</span>';
   try {
-    const res = await fetch('/api/file/source?path=' + encodeURIComponent(path));
-    if (!res.ok) throw new Error(await res.text());
-    const { lines } = await res.json();
-    renderSourceTable(lines, path, content);
+    const [sourceRes, threads] = await Promise.all([
+      fetch('/api/file/source?path=' + encodeURIComponent(path)),
+      getThreads(path),
+    ]);
+    if (!sourceRes.ok) throw new Error(await sourceRes.text());
+    const { lines } = await sourceRes.json();
+    renderSourceTable(lines, path, content, threads);
   } catch (e) {
     content.innerHTML = `<div class="error-msg">${esc(e.message)}</div>`;
   }
 }
 
-function renderSourceTable(lines, path, container) {
+function renderSourceTable(lines, path, container, threads) {
   const table = document.createElement('table');
   table.id = 'source-table';
+
+  // build line -> threads map
+  const threadsByLine = {};
+  for (const t of (threads || [])) {
+    if (!threadsByLine[t.line]) threadsByLine[t.line] = [];
+    threadsByLine[t.line].push(t);
+  }
 
   lines.forEach(({ n, text, commentable }) => {
     const tr = document.createElement('tr');
@@ -515,11 +788,28 @@ function renderSourceTable(lines, path, container) {
       const openComment = () => {
         if (tr.nextSibling && tr.nextSibling.classList?.contains('comment-row')) return;
         const formRow = buildCommentForm(path, n, () => formRow.remove());
-        tr.after(formRow);
+        // insert after any thread rows already present
+        let insertAfter = tr;
+        while (insertAfter.nextSibling?.classList?.contains('src-thread-row')) {
+          insertAfter = insertAfter.nextSibling;
+        }
+        insertAfter.after(formRow);
         formRow.querySelector('textarea').focus();
       };
       tdMark.addEventListener('click', openComment);
       tdCode.addEventListener('click', openComment);
+    }
+
+    // inject existing threads for this line
+    for (const thread of (threadsByLine[n] || [])) {
+      const threadRow = document.createElement('tr');
+      threadRow.className = 'src-thread-row';
+      const threadTd = document.createElement('td');
+      threadTd.colSpan = 3;
+      const reload = () => { invalidateThreads(); loadSource(path); };
+      threadTd.appendChild(buildThreadEl(thread, reload));
+      threadRow.appendChild(threadTd);
+      table.appendChild(threadRow);
     }
   });
 

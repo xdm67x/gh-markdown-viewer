@@ -91,6 +91,46 @@ func (s *Server) handleSource(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"path": f.Filename, "lines": lines})
 }
 
+func (s *Server) handleThreads(w http.ResponseWriter, r *http.Request) {
+	threads, err := ghpr.FetchThreads(s.info)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, threads)
+}
+
+func (s *Server) handleReply(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		CommentID int64  `json:"commentId"`
+		Body      string `json:"body"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if err := ghpr.ReplyToComment(s.info, body.CommentID, body.Body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleResolveThread(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		NodeID string `json:"nodeId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if err := ghpr.ResolveThread(body.NodeID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]string{"status": "ok"})
+}
+
 func (s *Server) handleComment(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Path string `json:"path"`
