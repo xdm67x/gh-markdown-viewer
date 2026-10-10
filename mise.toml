@@ -3,8 +3,8 @@ go = "1.27.2"
 
 [tasks.test]
 description = "Run all tests"
-run = 'PATH="$GOROOT/bin:$PATH" go test -v ./...'
+run = "go test -v ./..."
 
 [tasks.build]
 description = "Build the binary"
-run = 'PATH="$GOROOT/bin:$PATH" go build -o gh-markdown-viewer .'
+run = "go build -o gh-markdown-viewer ."
