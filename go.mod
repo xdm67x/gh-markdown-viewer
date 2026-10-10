@@ -1,6 +1,6 @@
 module github.com/xdm67x/gh-markdown-viewer
 
-go 1.26.1
+go 1.27.2
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0
