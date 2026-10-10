@@ -8,12 +8,15 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
-// PostLineComment posts a RIGHT-side line-level review comment on the PR.
-// line must be a post-change line number present in CommentableLines for path.
-func PostLineComment(info PRInfo, path, body string, line int) error {
+// PostLineComment posts a line-level review comment on the PR.
+// line must be present in the diff (RIGHT for head lines, LEFT for base/deleted lines).
+func PostLineComment(info PRInfo, path, body string, line int, side string) error {
 	client, err := api.DefaultRESTClient()
 	if err != nil {
 		return err
+	}
+	if side == "" {
+		side = "RIGHT"
 	}
 
 	payload := map[string]any{
@@ -21,7 +24,7 @@ func PostLineComment(info PRInfo, path, body string, line int) error {
 		"commit_id": info.HeadSHA,
 		"path":      path,
 		"line":      line,
-		"side":      "RIGHT",
+		"side":      side,
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

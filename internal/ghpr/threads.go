@@ -143,6 +143,22 @@ mutation($threadId:ID!) {
 	return client.Do(mutation, map[string]any{"threadId": nodeID}, &result)
 }
 
+// UnresolveThread marks a review thread as un-resolved via GraphQL.
+func UnresolveThread(nodeID string) error {
+	client, err := api.DefaultGraphQLClient()
+	if err != nil {
+		return err
+	}
+	mutation := `
+mutation($threadId:ID!) {
+  unresolveReviewThread(input:{threadId:$threadId}) {
+    thread { isResolved }
+  }
+}`
+	var result map[string]any
+	return client.Do(mutation, map[string]any{"threadId": nodeID}, &result)
+}
+
 // ReplyToComment posts a reply to an existing PR review comment.
 func ReplyToComment(info PRInfo, inReplyTo int64, body string) error {
 	client, err := api.DefaultRESTClient()

@@ -1,17 +1,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/xdm67x/gh-markdown-viewer/internal/ghpr"
-	"github.com/xdm67x/gh-markdown-viewer/internal/web"
+	"github.com/xdm67x/gh-markdown-viewer/internal/tui"
 )
 
 func main() {
@@ -47,27 +42,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	srv := web.NewServer(info, files)
-	ln, err := srv.Listen()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error starting server: %s\n", err)
+	if err := tui.Run(info, files); err != nil {
+		fmt.Fprintf(os.Stderr, "error running viewer: %s\n", err)
 		os.Exit(1)
 	}
-
-	httpSrv := &http.Server{Handler: srv.Handler()}
-	go httpSrv.Serve(ln) //nolint:errcheck
-
-	url := "http://" + ln.Addr().String()
-	fmt.Println(url)
-	web.OpenBrowser(url)
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	httpSrv.Shutdown(ctx) //nolint:errcheck
 }
 
 func resolveRef(arg, repoFlag string) (ghpr.Ref, error) {
